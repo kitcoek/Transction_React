@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        header {
+            background-color: #4CAF50;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .chart-container {
+            width: 60%; /* Adjust as needed for chart size */
+            margin: 20px auto;
+        }
+
+        .pie-chart-container {
+            width: 100%;
+            display: flex;
+            justify-content: center; /* This centers the pie chart horizontally */
+            margin: 20px auto;
+        }
+
+        canvas#pieChart {
+            max-width: 500px; /* Make the pie chart smaller */
+            max-height: 500px;
+        }
+
+        .stats-box {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .stats-box div {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Transaction Dashboard</h1>
+        <p>Track and analyze your sales efficiently</p>
+    </header>
+   
+
+    <!-- Month Selector -->
+    <label for="month">Select Month:</label>
+    <select id="month" onchange="fetchData()">
+        <option value="01">January</option>
+        <option value="02">February</option>
+        <option value="03">March</option>
+        <option value="04">April</option>
+        <option value="05">May</option>
+        <option value="06">June</option>
+        <option value="07">July</option>
+        <option value="08">August</option>
+        <option value="09">September</option>
+        <option value="10">October</option>
+        <option value="11">November</option>
+        <option value="12">December</option>
+    </select>
+
+    <!-- Search Input -->
+    <input type="text" id="search" placeholder="Search transactions..." oninput="fetchData()">
+
+    <!-- Transactions Table -->
+    <h2>Transactions</h2>
+    <table id="transactionsTable">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Category</th>
+                <th>Date of Sale</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="transactionsBody">
+            <!-- Data will be inserted here dynamically -->
+        </tbody>
+    </table>
+
+    <!-- Statistics Boxes -->
+    <div class="stats-box">
+        <div>
+            <h3>Total Sales Amount</h3>
+            <p id="totalSales">0</p>
+        </div>
+        <div>
+            <h3>Total Sold Items</h3>
+            <p id="totalSold">0</p>
+        </div>
+        <div>
+            <h3>Total Not Sold Items</h3>
+            <p id="totalNotSold">0</p>
+        </div>
+    </div>
+
+    <!-- Charts Section (Stacked vertically) -->
+    <div class="chart-container">
+        <canvas id="barChart"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="pieChart"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let barChart, pieChart;
+
+        async function fetchData() {
+            const month = document.getElementById('month').value;
+            const search = document.getElementById('search').value;
+
+            try {
+                // Fetch combined data from backend
+                const response = await axios.get(`http://localhost:5000/api/combined-data?month=${month}&search=${search}`);
+                const { transactions, stats, barChart: barChartData, pieChart: pieChartData } = response.data;
+
+                // Update Transactions Table
+                const transactionsBody = document.getElementById('transactionsBody');
+                transactionsBody.innerHTML = ''; // Clear the table before adding new data
+                transactions.forEach(transaction => {
+                    const row = `
+                        <tr>
+                            <td>${transaction.title}</td>
+                            <td>${transaction.description}</td>
+                            <td>${transaction.price}</td>
+                            <td>${transaction.category}</td>
+                            <td>${new Date(transaction.dateOfSale).toLocaleDateString()}</td>
+                            <td>${transaction.sold ? 'Sold' : 'Not Sold'}</td>
+                        </tr>
+                    `;
+                    transactionsBody.innerHTML += row;
+                });
+
+                // Update Statistics
+                document.getElementById('totalSales').textContent = stats.totalAmount;
+                document.getElementById('totalSold').textContent = stats.totalSold;
+                document.getElementById('totalNotSold').textContent = stats.totalNotSold;
+
+                // Update Bar Chart
+                if (barChart) {
+                    barChart.destroy(); // Destroy previous instance if it exists
+                }
+                const barLabels = barChartData.map(item => item.range);
+                const barCounts = barChartData.map(item => item.count);
+                const barCtx = document.getElementById('barChart').getContext('2d');
+                barChart = new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: barLabels,
+                        datasets: [{
+                            label: 'Number of Items',
+                            data: barCounts,
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                // Update Pie Chart
+                if (pieChart) {
+                    pieChart.destroy(); // Destroy previous instance if it exists
+                }
+                const pieLabels = pieChartData.map(item => item._id);
+                const pieCounts = pieChartData.map(item => item.count);
+                const pieCtx = document.getElementById('pieChart').getContext('2d');
+                pieChart = new Chart(pieCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data: pieCounts,
+                            backgroundColor: [
+                                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'
+                            ],
+                        }]
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        // Initialize page with default data
+        fetchData();
+    </script>
+
+</body>
+</html>
